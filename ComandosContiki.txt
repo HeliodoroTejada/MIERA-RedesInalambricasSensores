@@ -1,0 +1,179 @@
+HOST: entrar en el contenedor (alias que ya has configurado)
+contiker
+
+===============================================================================
+1. COMPILAR Y PROBAR EN EL ORDENADOR (TARGET NATIVO)
+===============================================================================
+
+# DOCKER: entrar en el ejemplo
+cd /home/user/contiki-ng/examples/hello-world
+
+# Compilar para modo nativo
+make TARGET=native
+
+# Ejecutar el programa sin usar la placa
+./build/native/hello-world.native
+
+
+===============================================================================
+2. COMPILAR PARA LA PLACA nRF52840 DONGLE
+===============================================================================
+
+# DOCKER: situarse en el proyecto
+cd /home/user/contiki-ng/examples/hello-world
+
+# Compilar para la placa (diapositiva 13)
+make TARGET=nrf52840 BOARD=dongle
+
+# Localizar los archivos generados
+find build -type f
+
+# Limpiar los resultados de compilación y volver a compilar, si hace falta
+make clean
+make TARGET=nrf52840 BOARD=dongle
+
+===============================================================================
+4. CARGAR EL FIRMWARE EN LA PLACA: DFU POR USB
+===============================================================================
+
+# PASO PREVIO (MANUAL): conectar la nRF52840 Dongle por USB y ponerla en
+# modo DFU con el botón de reset.
+
+# DOCKER: subir la aplicación compilada
+make TARGET=nrf52840 BOARD=dongle hello-world.dfu-upload
+
+# PARA OTRA APLICACIÓN, sustituir el nombre del objetivo:
+# make TARGET=nrf52840 BOARD=dongle mi-app.dfu-upload
+
+# FLUJO HABITUAL:
+#  1) Editar mi-app.c y guardar.
+#  2) make TARGET=nrf52840 BOARD=dongle
+#  3) Poner la placa en modo DFU.
+#  4) make TARGET=nrf52840 BOARD=dongle mi-app.dfu-upload
+#  5) Abrir el puerto serie para ver los printf().
+
+===============================================================================
+5. VER LA SALIDA SERIE (printf) DE LA PLACA
+===============================================================================
+
+# HOST: detectar el puerto creado al conectar la placa
+ls /dev/ttyACM* /dev/ttyUSB* 2>/dev/null
+
+# HOST: comando de la diapositiva 13 (si la placa aparece como ttyACM0)
+picocom -fh -b 115200 --imap lfcrlf /dev/ttyACM0
+
+# HOST: alternativa sin control de flujo por hardware, si lo anterior falla
+picocom -b 115200 --flow n --imap lfcrlf /dev/ttyACM0
+
+# Salir de picocom: Ctrl+A, después Ctrl+X.
+# Si el puerto es /dev/ttyACM1, sustituye ttyACM0 por ttyACM1.
+
+# IMPORTANTE SOBRE TU DOCKER:
+# El alias actual comparte /dev/bus/usb (útil para DFU), pero NO monta
+# necesariamente /dev/ttyACM0 dentro del contenedor.
+# Por eso resulta más sencillo ejecutar picocom en Ubuntu (HOST).
+
+===============================================================================
+6. DIAGNÓSTICO DE USB, PUERTO SERIE Y PERMISOS
+===============================================================================
+
+# HOST: comprobar si Ubuntu detecta la placa USB
+lsusb
+
+# HOST: ver los puertos serie disponibles
+ls -l /dev/ttyACM* /dev/ttyUSB* 2>/dev/null
+
+# HOST: observar mensajes del kernel al conectar o desconectar la placa
+sudo dmesg --follow
+
+# HOST: comprobar a qué grupos pertenece tu usuario
+id -nG
+
+# HOST: instalar picocom si todavía no lo tienes
+sudo apt update
+sudo apt install picocom
+
+# HOST: si aparece "Permission denied" al abrir /dev/ttyACM0,
+# comprobar que el puerto pertenece al grupo dialout:
+ls -l /dev/ttyACM0
+
+# Si corresponde, añadir tu usuario al grupo dialout (se hace solo una vez):
+sudo usermod -aG dialout "$USER"
+
+# Cerrar sesión y volver a iniciarla para aplicar el cambio de grupo.
+# Si el puerto está ocupado, cerrar cualquier otro monitor serie abierto.
+# Si falla DFU, confirmar que la placa ESTÁ en modo DFU antes de repetir
+# el comando .dfu-upload.
+
+===============================================================================
+7. COMANDOS ÚTILES PARA TRABAJAR CON PROYECTOS
+===============================================================================
+
+# DOCKER: ver las aplicaciones de ejemplo
+cd /home/user/contiki-ng/examples
+ls
+
+# DOCKER: consultar documentación o Makefile de una aplicación
+cd /home/user/contiki-ng/examples/hello-world
+cat README.md
+cat Makefile
+
+# DOCKER: editar un fichero (si el editor está instalado)
+nano hello-world.c
+
+# DOCKER: consultar los directorios de código de procesos y temporizadores
+ls /home/user/contiki-ng/os/sys/
+
+# HOST: ver los contenedores Docker activos
+docker ps
+
+# HOST: comprobar el contenido real del directorio compartido
+ls "$CNG_PATH/examples/hello-world"
+
+===============================================================================
+8. MAKEFILE MÍNIMO PARA UNA APLICACIÓN PROPIA
+===============================================================================
+
+# EJEMPLO DE CONTENIDO DE Makefile (NO pegar estas líneas en el terminal):
+# Si la app está en contiki-ng/examples/mi-app/ y su fuente es mi-app.c:
+#
+# CONTIKI = ../..
+# all: mi-app
+# include $(CONTIKI)/Makefile.include
+#
+# CONTIKI indica la ruta relativa hasta la raíz del repositorio.
+# all indica el nombre de la aplicación (sin la extensión .c).
+# Si la app está en otra ubicación, hay que ajustar CONTIKI.
+
+===============================================================================
+9. RESUMEN EXPRÉS (LO MÁS USADO)
+===============================================================================
+
+# HOST:
+contiker
+
+# DOCKER:
+cd /home/user/contiki-ng/examples/hello-world
+make TARGET=nrf52840 BOARD=dongle
+
+# AHORA: activar el modo DFU con la placa conectada.
+
+# DOCKER:
+make TARGET=nrf52840 BOARD=dongle hello-world.dfu-upload
+exit
+
+# HOST (verificar el nombre del puerto antes):
+picocom -b 115200 --flow n --imap lfcrlf /dev/ttyACM0
+
+# SALIR DEL MONITOR SERIE: Ctrl+A, Ctrl+X.
+
+===============================================================================
+FUENTE
+Presentación "Práctica 1. Introducción a la programación en el sistema
+operativo Contiki", Redes Inalámbricas de Sensores, MIERA 2026/27.
+- Diap. 9 y 11: estructura de la aplicación y Makefile.
+- Diap. 12: compilación y ejecución nativa.
+- Diap. 13: nRF52840 Dongle, DFU, carga y picocom.
+Los consejos de Docker, permisos, diagnóstico y mantenimiento son añadidos
+para tu entorno Ubuntu + Docker; no son instrucciones de las diapositivas.
+===============================================================================
