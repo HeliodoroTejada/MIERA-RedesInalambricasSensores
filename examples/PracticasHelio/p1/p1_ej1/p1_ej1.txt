@@ -1,0 +1,15 @@
+Microcontrolador(nRF52840)	
+	Fuente: arch/platform/nrf/platform.c	
+	Cabeceras: arch/cpu/nrf/nrf52840-def.h y nrf52840-conf.h
+
+Transceiver radio	
+	Fuente: arch/cpu/nrf/net/nrf-ieee-driver-arch.c	
+	Cabeceras: os/dev/radio.h
+
+Almacenamiento externo	
+	Fuente: arch/dev/storage/ext-flash/ext-flash.c	
+	Cabeceras: arch/dev/storage/ext-flash/ext-flash.h
+
+Almacenamiento interno	
+	Fuente: arch/cpu/nrf/lib/nrfx/drivers/src/nrfx_nvmc.c	
+	Cabeceras: arch/cpu/nrf/lib/nrfx/drivers/include/nrfx_nvmc.h
