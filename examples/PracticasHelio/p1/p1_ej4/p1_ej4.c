@@ -16,13 +16,16 @@ PROCESS_THREAD(read_temp, ev, data)
   sensor = sensors_find("Temperature");
   int raw_value=0;
   int temp_converted=0;
+  int temp_converted_decimal=0;
+  
 
   while(1) {
     PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_POLL);
 
     raw_value = sensor->value(0);
     temp_converted = raw_value/4;
-    printf("Temperatura leida: %d ºC\n", temp_converted);
+    temp_converted_decimal = 25*(raw_value%4);
+    printf("Temperatura leida: %d.%d ºC\n", temp_converted, temp_converted_decimal);
   }
 
   PROCESS_END();
