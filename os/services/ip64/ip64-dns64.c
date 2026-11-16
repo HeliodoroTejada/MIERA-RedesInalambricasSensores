@@ -61,23 +61,24 @@ struct dns_hdr {
   uint8_t numextrarr[2];
 };
 
-/* A question, which follows the name it asks about. */
 #define DNS_QUESTION_TYPE0  0
 #define DNS_QUESTION_TYPE1  1
 #define DNS_QUESTION_CLASS0 2
 #define DNS_QUESTION_CLASS1 3
 #define DNS_QUESTION_SIZE   4
 
-/*
- * The fixed fields of a resource record, which follow the name the record is
- * about: a type and a class of two bytes each, a TTL of four, and then the
- * length of the data that follows the fields themselves.
- */
-#define DNS_ANSWER_TYPE0    0
-#define DNS_ANSWER_TYPE1    1
-#define DNS_ANSWER_LEN0     8
-#define DNS_ANSWER_LEN1     9
-#define DNS_ANSWER_SIZE    10
+struct dns_answer {
+  /* DNS answer record starts with either a domain name or a pointer
+   * to a name already present somewhere in the packet. */
+  uint8_t type[2];
+  uint8_t class[2];
+  uint8_t ttl[4];
+  uint8_t len[2];
+  union {
+    uint8_t ip6[16];
+    uint8_t ip4[4];
+  } addr;
+};
 
 #define DNS_TYPE_A      1
 #define DNS_TYPE_AAAA  28
@@ -85,55 +86,21 @@ struct dns_hdr {
 #define DNS_CLASS_IN    1
 #define DNS_CLASS_ANY 255
 
-/* The two high bits of a label length mark a compression pointer instead. */
-#define DNS_NAME_POINTER 0xc0
-
-/*---------------------------------------------------------------------------*/
-/*
- * A name is a sequence of labels, each one a length byte followed by that
- * many bytes, ending either with a zero-length label or with a two-byte
- * pointer to a name earlier in the message. Returns the offset of the byte
- * that follows the name, or a negative value if the name does not end
- * within the message.
- */
-static int
-skip_name(const uint8_t *data, int datalen, int offset)
-{
-  int len;
-
-  while(offset < datalen) {
-    len = data[offset];
-    if(len & DNS_NAME_POINTER) {
-      /* A pointer is the last thing in a name. */
-      return offset <= datalen - 2 ? offset + 2 : -1;
-    }
-    offset += 1 + len;
-    if(len == 0) {
-      return offset;
-    }
-  }
-
-  return -1;
-}
 /*---------------------------------------------------------------------------*/
 void
 ip64_dns64_6to4(const uint8_t *ipv6data, int ipv6datalen,
                 uint8_t *ipv4data, int ipv4datalen)
 {
-  int i;
-  int offset;
+  int i, j;
+  int qlen;
+  uint8_t *qdata;
   uint8_t *q;
-  const struct dns_hdr *hdr;
+  struct dns_hdr *hdr;
 
-  if(ipv4datalen < (int)sizeof(struct dns_hdr)) {
-    LOG_WARN("dns64_6to4: message ended while parsing the header\n");
-    return;
-  }
-
-  hdr = (const struct dns_hdr *)ipv4data;
+  hdr = (struct dns_hdr *)ipv4data;
   LOG_DBG("dns64_6to4 id: %02x%02x\n", hdr->id[0], hdr->id[1]);
   LOG_DBG("dns64_6to4 flags1: 0x%02x\n", hdr->flags1);
-  LOG_DBG("dns64_6to4 flags2: 0x%02x\n", hdr->flags2);
+  LOG_DBG("ip64_dns64_6to4 flags2: 0x%02x\n", hdr->flags2);
   LOG_DBG("dns64_6to4 numquestions: 0x%02x\n",
       ((hdr->numquestions[0] << 8) + hdr->numquestions[1]));
   LOG_DBG("dns64_6to4 numanswers: 0x%02x\n",
@@ -145,51 +112,42 @@ ip64_dns64_6to4(const uint8_t *ipv6data, int ipv6datalen,
 
   /* Find the DNS question header by scanning through the question
      labels. */
-  offset = sizeof(struct dns_hdr);
+  qdata = ipv4data + sizeof(struct dns_hdr);
   for(i = 0; i < ((hdr->numquestions[0] << 8) + hdr->numquestions[1]); i++) {
-    offset = skip_name(ipv4data, ipv4datalen, offset);
-    if(offset < 0 || offset > ipv4datalen - DNS_QUESTION_SIZE) {
-      LOG_WARN("dns64_6to4: message ended while parsing a question\n");
-      return;
-    }
-
-    q = &ipv4data[offset];
+    do {
+      qlen = *qdata;
+      qdata++;
+      for(j = 0; j < qlen; j++) {
+        qdata++;
+        if(qdata > ipv4data + ipv4datalen) {
+          LOG_WARN("dns64_6to4: Packet ended while parsing\n");
+          return;
+        }
+      }
+    } while(qlen != 0);
+    q = qdata;
     if(q[DNS_QUESTION_CLASS0] == 0 && q[DNS_QUESTION_CLASS1] == DNS_CLASS_IN &&
        q[DNS_QUESTION_TYPE0] == 0 && q[DNS_QUESTION_TYPE1] == DNS_TYPE_AAAA) {
       q[DNS_QUESTION_TYPE1] = DNS_TYPE_A;
     }
 
-    offset += DNS_QUESTION_SIZE;
+    qdata += DNS_QUESTION_SIZE;
   }
 }
 /*---------------------------------------------------------------------------*/
 int
 ip64_dns64_4to6(const uint8_t *ipv4data, int ipv4datalen,
-                uint8_t *ipv6data, int ipv6capacity)
+                uint8_t *ipv6data, int ipv6datalen)
 {
-  int i;
-  /* Offsets of the next byte to read, and of the next one to write. */
-  int in, out;
-  int end, len, tail;
+  uint8_t n;
+  int i, j;
+  int qlen, len;
+  const uint8_t *qdata, *adata;
+  uint8_t *qcopy, *acopy, *lenptr;
   uint8_t *q;
-  const struct dns_hdr *hdr;
+  struct dns_hdr *hdr;
 
-  if(ipv4datalen < (int)sizeof(struct dns_hdr)) {
-    LOG_WARN("dns64_4to6: message ended while parsing the header\n");
-    return IP64_DNS64_DROP;
-  }
-
-  /*
-   * ip64_4to6() copies the message into the packet going out before calling
-   * this function, so everything up to the first record that grows is
-   * already in place there.
-   */
-  if(ipv6capacity < ipv4datalen) {
-    LOG_WARN("dns64_4to6: no room for the message that came in\n");
-    return IP64_DNS64_DROP;
-  }
-
-  hdr = (const struct dns_hdr *)ipv4data;
+  hdr = (struct dns_hdr *)ipv4data;
   LOG_DBG("dns64_4to6 id: %02x%02x\n", hdr->id[0], hdr->id[1]);
   LOG_DBG("dns64_4to6 flags1: 0x%02x\n", hdr->flags1);
   LOG_DBG("dns64_4to6 flags2: 0x%02x\n", hdr->flags2);
@@ -202,119 +160,105 @@ ip64_dns64_4to6(const uint8_t *ipv4data, int ipv4datalen,
   LOG_DBG("dns64_4to6 numextrarr: 0x%02x\n",
       ((hdr->numextrarr[0] << 8) + hdr->numextrarr[1]));
 
-  /*
-   * Find the DNS answer header by scanning through the question labels.
-   * Nothing has grown yet, so a question sits at the same offset in both
-   * messages and is rewritten where the copy left it.
-   */
-  in = sizeof(struct dns_hdr);
+  /* Find the DNS answer header by scanning through the question
+     labels. */
+  qdata = ipv4data + sizeof(struct dns_hdr);
+  qcopy = ipv6data + sizeof(struct dns_hdr);
   for(i = 0; i < ((hdr->numquestions[0] << 8) + hdr->numquestions[1]); i++) {
-    in = skip_name(ipv4data, ipv4datalen, in);
-    if(in < 0 || in > ipv4datalen - DNS_QUESTION_SIZE) {
-      LOG_WARN("dns64_4to6: message ended while parsing a question\n");
-      return IP64_DNS64_DROP;
-    }
-
-    q = &ipv6data[in];
-    /*
-     * The question is the one that went out, which ip64_dns64_6to4() rewrote
-     * from AAAA to A. Put it back, so that the reply carries the question
-     * that was asked.
-     */
+    do {
+      qlen = *qdata;
+      qdata++;
+      qcopy++;
+      for(j = 0; j < qlen; j++) {
+        qdata++;
+        qcopy++;
+        if(qdata > ipv4data + ipv4datalen) {
+          LOG_WARN("dns64_4to6: packet ended while parsing\n");
+          return ipv6datalen;
+        }
+      }
+    } while(qlen != 0);
+    q = qcopy;
     if(q[DNS_QUESTION_CLASS0] == 0 && q[DNS_QUESTION_CLASS1] == DNS_CLASS_IN &&
-       q[DNS_QUESTION_TYPE0] == 0 && q[DNS_QUESTION_TYPE1] == DNS_TYPE_A) {
+       q[DNS_QUESTION_TYPE0] == 0 && q[DNS_QUESTION_TYPE1] == DNS_TYPE_AAAA) {
       q[DNS_QUESTION_TYPE1] = DNS_TYPE_AAAA;
     }
 
-    in += DNS_QUESTION_SIZE;
+    qdata += DNS_QUESTION_SIZE;
+    qcopy += DNS_QUESTION_SIZE;
   }
 
-  /*
-   * Go through the answers and turn every A record into a AAAA record. Each
-   * one that is translated grows by 12 bytes, so the two offsets part
-   * company and everything that follows has to be written to its new place.
-   */
-  out = in;
+  adata = qdata;
+  acopy = qcopy;
+
+  /* Go through the answers section and update the answers. */
   for(i = 0; i < ((hdr->numanswers[0] << 8) + hdr->numanswers[1]); i++) {
-    /* The name the record is about, which is copied as it stands. */
-    end = skip_name(ipv4data, ipv4datalen, in);
-    if(end < 0) {
-      LOG_WARN("dns64_4to6: message ended while parsing a record name\n");
-      return IP64_DNS64_DROP;
-    }
-    if(end - in > ipv6capacity - out) {
-      LOG_WARN("dns64_4to6: no room for a record name\n");
-      return IP64_DNS64_DROP;
-    }
-    memcpy(&ipv6data[out], &ipv4data[in], end - in);
-    out += end - in;
-    in = end;
 
-    if(in > ipv4datalen - DNS_ANSWER_SIZE) {
-      LOG_WARN("dns64_4to6: message ended while parsing a record\n");
-      return IP64_DNS64_DROP;
-    }
-    len = (ipv4data[in + DNS_ANSWER_LEN0] << 8) + ipv4data[in + DNS_ANSWER_LEN1];
-    if(len > ipv4datalen - DNS_ANSWER_SIZE - in) {
-      LOG_WARN("dns64_4to6: record holds less data than its length field\n");
-      return IP64_DNS64_DROP;
-    }
-
-    if(ipv4data[in + DNS_ANSWER_TYPE0] == 0 &&
-       ipv4data[in + DNS_ANSWER_TYPE1] == DNS_TYPE_A &&
-       len == sizeof(uip_ip4addr_t)) {
-      uip_ip4addr_t addr4;
-      uip_ip6addr_t addr6;
-
-      if(DNS_ANSWER_SIZE + (int)sizeof(addr6) > ipv6capacity - out) {
-        LOG_WARN("dns64_4to6: no room for a translated record\n");
-        return IP64_DNS64_DROP;
-      }
-
-      /* The record keeps its class and its TTL, but becomes a AAAA record
-         holding an address of four times the length. */
-      memcpy(&ipv6data[out], &ipv4data[in], DNS_ANSWER_SIZE);
-      ipv6data[out + DNS_ANSWER_TYPE1] = DNS_TYPE_AAAA;
-      ipv6data[out + DNS_ANSWER_LEN0] = 0;
-      ipv6data[out + DNS_ANSWER_LEN1] = sizeof(addr6);
-      in += DNS_ANSWER_SIZE;
-      out += DNS_ANSWER_SIZE;
-
-      /* A name of odd length leaves the record data at an odd offset,
-         whereas uip_ip6addr_t is written through as 16-bit words, so the
-         address is synthesized into a local one and copied into place. */
-      memcpy(&addr4, &ipv4data[in], sizeof(addr4));
-      ip64_addr_4to6(&addr4, &addr6);
-      memcpy(&ipv6data[out], &addr6, sizeof(addr6));
-      in += len;
-      out += sizeof(addr6);
+    n = *adata;
+    if(n & 0xc0) {
+      /* Short-hand name format: 2 bytes */
+      *acopy++ = *adata++;
+      *acopy++ = *adata++;
     } else {
-      /* Every other record is copied as it stands. */
-      if(DNS_ANSWER_SIZE + len > ipv6capacity - out) {
-        LOG_WARN("dns64_4to6: no room for a record\n");
-        return IP64_DNS64_DROP;
+      /* Name spelled out */
+      do {
+        n = *adata;
+        adata++;
+        acopy++;
+        for(j = 0; j < n; j++) {
+          *acopy++ = *adata++;
+        }
+      } while(n != 0);
+    }
+
+    if(adata[0] == 0 && adata[1] == DNS_TYPE_A) {
+      /* Update the type field from A to AAAA */
+      *acopy = *adata;
+      acopy++;
+      adata++;
+      *acopy = DNS_TYPE_AAAA;
+      acopy++;
+      adata++;
+
+      /* Get the length of the address record. Should be 4. */
+      lenptr = &acopy[6];
+      len = (adata[6] << 8) + adata[7];
+
+      /* Copy the class, the TTL, and the data length */
+      memcpy(acopy, adata, 2 + 4 + 2);
+      acopy += 8;
+      adata += 8;
+
+      if(len == 4) {
+        uip_ip4addr_t addr;
+        uip_ipaddr(&addr, adata[0], adata[1], adata[2], adata[3]);
+        ip64_addr_4to6(&addr, (uip_ip6addr_t *)acopy);
+
+        adata += len;
+        acopy += 16;
+        lenptr[0] = 0;
+        lenptr[1] = 16;
+        ipv6datalen += 12;
+
+      } else {
+        memcpy(acopy, adata, len);
+        acopy += len;
+        adata += len;
       }
-      memcpy(&ipv6data[out], &ipv4data[in], DNS_ANSWER_SIZE + len);
-      in += DNS_ANSWER_SIZE + len;
-      out += DNS_ANSWER_SIZE + len;
+    } else {
+      len = (adata[8] << 8) + adata[9];
+
+      /* Copy the type, class, the TTL, and the data length */
+      memcpy(acopy, adata, 2 + 2 + 4 + 2);
+      acopy += 10;
+      adata += 10;
+
+      /* Copy the data */
+      memcpy(acopy, adata, len);
+      acopy += len;
+      adata += len;
     }
   }
-
-  /*
-   * The authority and the additional sections are copied as they stand, but
-   * they still have to move, since the answers before them grew. A name in
-   * them that points back into an answer keeps the offset it had, which the
-   * growth invalidated; correcting those would mean rewriting the names in
-   * the whole message.
-   */
-  tail = ipv4datalen - in;
-  if(tail > ipv6capacity - out) {
-    LOG_WARN("dns64_4to6: no room for the rest of the message\n");
-    return IP64_DNS64_DROP;
-  }
-  memcpy(&ipv6data[out], &ipv4data[in], tail);
-  out += tail;
-
-  return out;
+  return ipv6datalen;
 }
 /*---------------------------------------------------------------------------*/

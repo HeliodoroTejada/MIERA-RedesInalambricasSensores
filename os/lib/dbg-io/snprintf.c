@@ -46,11 +46,9 @@ static strformat_result
 buffer_str(void *user_data, const char *data, unsigned int len)
 {
   struct fmt_buffer *buffer = (struct fmt_buffer *)user_data;
-  if(buffer->left <= 1) {
-    return STRFORMAT_OK;
-  }
   if(len >= buffer->left) {
-    len = buffer->left - 1;
+    len = buffer->left;
+    len--;
   }
 
   memcpy(buffer->pos, data, len);
@@ -81,9 +79,7 @@ vsnprintf(char *str, size_t size, const char *format, va_list ap)
   buffer.pos = str;
   buffer.left = size;
   res = format_str_v(&ctxt, format, ap);
-  if(size > 0) {
-    *buffer.pos = '\0';
-  }
+  *buffer.pos = '\0';
   return res;
 }
 /*---------------------------------------------------------------------------*/

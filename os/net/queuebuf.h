@@ -54,7 +54,7 @@
 #define QUEUEBUF_H_
 
 #include "net/packetbuf.h"
-#include <stddef.h>
+#include <stdlib.h>
 
 #ifdef QUEUEBUF_CONF_ENABLED
 #define QUEUEBUF_ENABLED QUEUEBUF_CONF_ENABLED

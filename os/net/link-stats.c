@@ -86,20 +86,6 @@ NBR_TABLE(struct link_stats, link_stats);
 struct ctimer periodic_timer;
 
 /*---------------------------------------------------------------------------*/
-static struct link_stats *
-create_link_stats(const linkaddr_t *lladdr)
-{
-  struct link_stats *stats = nbr_table_add_lladdr(link_stats,
-                                                  lladdr,
-                                                  NBR_TABLE_REASON_LINK_STATS,
-                                                  NULL);
-  if(stats == NULL) {
-    return NULL;
-  }
-  stats->rssi = LINK_STATS_RSSI_UNKNOWN;
-  return stats;
-}
-/*---------------------------------------------------------------------------*/
 /* Returns the neighbor's link stats */
 const struct link_stats *
 link_stats_from_lladdr(const linkaddr_t *lladdr)
@@ -128,7 +114,7 @@ link_stats_is_fresh(const struct link_stats *stats)
  * Returns initial ETX value from an RSSI value.
  *    RSSI >= RSSI_HIGH           -> use default ETX
  *    RSSI_LOW < RSSI < RSSI_HIGH -> ETX is a linear function of RSSI
- *    RSSI <= RSSI_LOW            -> use maximal initial ETX
+ *    RSSI <= RSSI_LOW            -> use minimal initial ETX
  **/
 static uint16_t
 guess_etx_from_rssi(const struct link_stats *stats)
@@ -137,7 +123,7 @@ guess_etx_from_rssi(const struct link_stats *stats)
     if(stats->rssi == LINK_STATS_RSSI_UNKNOWN) {
       return ETX_DEFAULT * ETX_DIVISOR;
     } else {
-      const int16_t rssi_delta = LINK_STATS_RSSI_HIGH - stats->rssi;
+      const int16_t rssi_delta = stats->rssi - LINK_STATS_RSSI_LOW;
       const int16_t bounded_rssi_delta = BOUND(rssi_delta, 0, RSSI_DIFF);
       /* Penalty is in the range from 0 to ETX_DIVISOR */
       const uint16_t penalty = ETX_DIVISOR * bounded_rssi_delta / RSSI_DIFF;
@@ -154,6 +140,7 @@ guess_etx_from_rssi(const struct link_stats *stats)
 void
 link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
 {
+  struct link_stats *stats;
 #if !LINK_STATS_ETX_FROM_PACKET_COUNT
   uint16_t packet_etx;
   uint8_t ewma_alpha;
@@ -164,7 +151,7 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
     return;
   }
 
-  struct link_stats *stats = nbr_table_get_from_lladdr(link_stats, lladdr);
+  stats = nbr_table_get_from_lladdr(link_stats, lladdr);
   if(stats == NULL) {
     /* If transmission failed, do not add the neighbor, as the neighbor might not exist anymore */
     if(status != MAC_TX_OK) {
@@ -172,10 +159,11 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
     }
 
     /* Add the neighbor */
-    stats = create_link_stats(lladdr);
+    stats = nbr_table_add_lladdr(link_stats, lladdr, NBR_TABLE_REASON_LINK_STATS, NULL);
     if(stats == NULL) {
       return; /* No space left, return */
     }
+    stats->rssi = LINK_STATS_RSSI_UNKNOWN;
   }
 
   if(status == MAC_TX_QUEUE_FULL) {
@@ -244,15 +232,17 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
 void
 link_stats_input_callback(const linkaddr_t *lladdr)
 {
+  struct link_stats *stats;
   int16_t packet_rssi = packetbuf_attr(PACKETBUF_ATTR_RSSI);
 
-  struct link_stats *stats = nbr_table_get_from_lladdr(link_stats, lladdr);
+  stats = nbr_table_get_from_lladdr(link_stats, lladdr);
   if(stats == NULL) {
     /* Add the neighbor */
-    stats = create_link_stats(lladdr);
+    stats = nbr_table_add_lladdr(link_stats, lladdr, NBR_TABLE_REASON_LINK_STATS, NULL);
     if(stats == NULL) {
       return; /* No space left, return */
     }
+    stats->rssi = LINK_STATS_RSSI_UNKNOWN;
   }
 
   if(stats->rssi == LINK_STATS_RSSI_UNKNOWN) {

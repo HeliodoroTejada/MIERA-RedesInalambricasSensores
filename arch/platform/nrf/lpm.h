@@ -47,12 +47,6 @@
 /**
  * @brief Stop and wait for an interrupt
  */
-#if defined(NRF54L15_XXAA)
-extern void clock_arch_check_and_recover(void);
-#else
-#define clock_arch_check_and_recover() do { } while(0)
-#endif
-
 static inline void
 lpm_drop(void)
 {
@@ -66,7 +60,6 @@ lpm_drop(void)
     ENERGEST_SWITCH(ENERGEST_TYPE_LPM, ENERGEST_TYPE_CPU);
   }
   critical_exit(status);
-  clock_arch_check_and_recover();
 }
 /*---------------------------------------------------------------------------*/
 #endif /* LPM_H */

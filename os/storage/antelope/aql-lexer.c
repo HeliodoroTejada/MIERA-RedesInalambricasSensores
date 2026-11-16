@@ -35,7 +35,7 @@
  */
 
 #include "aql.h"
-#include "sys/cc.h"
+
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
@@ -104,6 +104,7 @@ static const struct keyword keywords[] = {
 
   {"PROJECT", PROJECT},
   {"MAXHEAP", MAXHEAP},
+  {"MEMHASH", MEMHASH},
 
   {"RELATION", RELATION},
 
@@ -111,7 +112,7 @@ static const struct keyword keywords[] = {
 };
 
 /* Provides a pointer to the first keyword of a specific length. */
-static const int8_t skip_hint[] = {0, 13, 21, 27, 33, 36, 44, 46, 47};
+static const int8_t skip_hint[] = {0, 13, 21, 27, 33, 36, 44, 47, 48};
 
 static char separators[] = "#.;,() \t\n";
 
@@ -139,7 +140,7 @@ get_token_id(const char *string, const size_t length)
 
   start = skip_hint[length - 1];
   if(sizeof(skip_hint) == length) {
-    end = CC_ARRAY_LENGTH(keywords);
+    end = sizeof(keywords) / sizeof(keywords[0]);
   } else {
     end = skip_hint[length];
   }
@@ -194,7 +195,7 @@ next_real(lexer_t *lexer, const char *s)
 static int
 next_string(lexer_t *lexer, const char *s)
 {
-  const char *end;
+  char *end;
   size_t length;
 
   end = strchr(s, '\'');

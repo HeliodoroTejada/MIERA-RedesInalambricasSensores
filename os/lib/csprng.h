@@ -80,9 +80,6 @@ struct csprng_seed {
   };
 };
 
-static_assert(sizeof(struct csprng_seed) == CSPRNG_SEED_LEN,
-              "unexpected padding");
-
 /**
  * \brief          Mixes a new seed with the current one.
  * \param new_seed Pointer to the new seed.

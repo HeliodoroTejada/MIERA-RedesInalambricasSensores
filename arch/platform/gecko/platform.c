@@ -56,6 +56,7 @@
 #include "dev/button-hal.h"
 #include "dev/leds.h"
 #include "dev/serial-line.h"
+#include "lib/random.h"
 #include "dev/uart-arch.h"
 #include "sys/linkaddr-arch.h"
 /*---------------------------------------------------------------------------*/
@@ -101,6 +102,8 @@ platform_init_stage_two(void)
   sl_platform_init_stage_two();
 
   button_hal_init();
+
+  random_init(0x5678);
 
   uart_init();
   serial_line_init();

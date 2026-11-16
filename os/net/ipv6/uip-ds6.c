@@ -43,6 +43,7 @@
  */
 
 #include <string.h>
+#include <stdlib.h>
 #include <stddef.h>
 #include "lib/random.h"
 #include "net/ipv6/uip-nd6.h"

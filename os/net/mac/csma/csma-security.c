@@ -96,6 +96,7 @@ csma_security_set_key(uint8_t index, const uint8_t *key)
   return 0;
 }
 
+#define N_KEYS (sizeof(keys) / sizeof(aes_key))
 /*---------------------------------------------------------------------------*/
 static int
 aead(uint8_t hdrlen, int forward)

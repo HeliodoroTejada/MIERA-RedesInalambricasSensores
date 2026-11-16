@@ -41,6 +41,7 @@
 #include "dev/uart0.h"
 #include "dev/watchdog.h"
 #include "dev/xmem.h"
+#include "lib/random.h"
 #include "net/netstack.h"
 #include "net/mac/framer/frame802154.h"
 #include "dev/adxl345.h"
@@ -202,6 +203,8 @@ platform_init_stage_two(void)
     node_mac[7] = node_id & 0xff;
   }
 #endif /* IEEE_802154_MAC_ADDRESS */
+
+  random_init(node_mac[6] + node_mac[7]);
 
   set_lladdr();
 

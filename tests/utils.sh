@@ -63,18 +63,6 @@ function register_last_bg_cmd( )
   BG_PIDS+=" $!"
 }
 
-# Every process below the given one, deepest first. sudo places more than one
-# process between itself and the command on some systems, so the command is
-# not always the direct child.
-function descendants( )
-{
-    local CHILD
-    for CHILD in $(pgrep -P $1); do
-        descendants $CHILD
-        echo $CHILD
-    done
-}
-
 function kill_bg( )
 {
     PID=$1
@@ -83,11 +71,8 @@ function kill_bg( )
     TOKILL=$PID
     SIGNAL=${2:-9}
     if [[ ${CMD:0:5} == "sudo " ]] ; then
-        # The job runs as root, so the whole tree below sudo has to go with it.
-        # Killing sudo alone leaves the command running and holding whatever it
-        # opened, such as the tun device the next test needs.
         SUDO="sudo "
-        TOKILL="$(descendants $PID) $PID"
+        TOKILL=$(ps --ppid $PID -o pid=)
     fi
     echo_run ${SUDO}kill -$SIGNAL $TOKILL
 }

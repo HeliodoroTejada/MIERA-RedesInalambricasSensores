@@ -41,6 +41,7 @@
 #include "dev/uart1.h"
 #include "dev/watchdog.h"
 #include "dev/xmem.h"
+#include "lib/random.h"
 #include "net/netstack.h"
 #include "net/mac/framer/frame802154.h"
 #include "net/mac/tsch/tsch.h"
@@ -142,6 +143,8 @@ platform_init_stage_two(void)
   /*
    * Hardware initialization done!
    */
+
+  random_init(ds2411_id[0]);
 
   leds_off(LEDS_BLUE);
 

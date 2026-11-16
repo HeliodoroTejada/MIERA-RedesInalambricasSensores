@@ -760,15 +760,12 @@ get_value(radio_param_t param, radio_value_t *value)
     *value = 0;
     return RADIO_RESULT_OK;
 
-  case RADIO_PARAM_TXPOWER: {
-    int8_t dbm;
-    res = rf_get_tx_power(prop_radio.rf_handle, rf_tx_power_table, &dbm);
-    *value = (radio_value_t)dbm;
+  case RADIO_PARAM_TXPOWER:
+    res = rf_get_tx_power(prop_radio.rf_handle, rf_tx_power_table, (int8_t *)&value);
     return ((res == RF_RESULT_OK) &&
-            (dbm != RF_TxPowerTable_INVALID_DBM))
+            (*value != RF_TxPowerTable_INVALID_DBM))
            ? RADIO_RESULT_OK
            : RADIO_RESULT_ERROR;
-  }
 
   case RADIO_PARAM_CCA_THRESHOLD:
     *value = prop_radio.rssi_threshold;

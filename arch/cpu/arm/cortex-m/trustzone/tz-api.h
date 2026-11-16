@@ -117,21 +117,10 @@ extern uint32_t __sg_end;
 
 /* Secure Gateway region size, aligned to the next 32 byte boundary. */
 extern uint32_t __nsc_size;
-
-/**
- * \brief Pend an NS-targeted IRQ to wake the normal world.
- *
- *        Called from secure context (including secure ISRs) by
- *        tz_api_request_ns_poll after setting ns_poll_pending.
- *        Implemented by the platform; weakly defined as a no-op in
- *        tz-api.c so platforms without a wake mechanism still link.
- */
-void tz_arch_signal_ns(void);
 /******************************************************************************/
 
 #else /* TRUSTZONE_SECURE */
 
-#define CC_TRUSTZONE_SECURE_CALL
 #define CC_TRUSTZONE_NONSECURE_CALL
 
 #endif /* TRUSTZONE_SECURE */
@@ -148,53 +137,29 @@ struct tz_api {
  * \retval false Error (apip pointed to invalid memory,
  *               or the API has been initialized already.)
  * \retval true  Success.
- *
- * \note         Must be called from the normal world before any
- *               normal-world scheduling begins, since the secure side
- *               posts trustzone_init_event to autostart processes
- *               from inside this call.
  */
 bool tz_api_init(struct tz_api *apip);
 
 /**
  * \brief        Poll the secure world and process all events in the queue.
- * \retval true  If the secure world has more work to do — either residual
- *               events in the queue, or a deferred poll request raised by
- *               the secure side during the call. The NS caller should
- *               reschedule itself.
- * \retval false If the secure world has nothing more to do, or the call
- *               was rejected (see note).
+ * \retval true  If the secure world has more events to process.
+ * \retval false If the secure world has no more events to process.
  *
- * \note         Must be called only from NS thread mode. The function
- *               runs process_run() and is not reentrant; calls from a
- *               handler context (NS interrupt or, defensively, a
- *               secure ISR) are rejected and return false without
- *               running events.
  */
 bool tz_api_poll(void);
 
 /**
  * \brief        Print the specified message via the secure world.
- * \param text   A pointer to the message text in non-secure memory.
- * \param len    The length of the message in bytes.
+ *
  */
-void tz_api_println(const char *text, size_t len);
+void tz_api_println(const char *text);
 
 /**
- * \brief        Mark the normal world as needing another poll cycle.
+ * \brief        Request poll from normal world.
  *
- *               Called from the secure world (e.g. via the Contiki-NG
- *               process module's PROCESS_CONF_POLL_REQUESTED hook)
- *               when secure-side state changes that the normal world
- *               needs to react to. The flag is observed by the next
- *               tz_api_poll(), which then returns true so the NS
- *               caller reschedules itself.
- *
- *               This is a secure-internal helper, not a secure
- *               gateway entry, and must not be called from the
- *               normal world.
+ *               Only called from secure world.
  */
-bool tz_api_request_ns_poll(void);
+bool tz_api_request_poll_from_ns(void);
 
 #endif /* !TZ_API_H */
 /** @} */

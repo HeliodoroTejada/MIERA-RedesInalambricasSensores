@@ -121,7 +121,6 @@ MEMB(heaps, heap_t, DB_HEAP_INDEX_LIMIT);
 static struct bucket_cache *get_cache(heap_t *, int);
 static struct bucket_cache *get_cache_free(void);
 static void invalidate_cache(void);
-static void invalidate_heap_cache(heap_t *);
 static maxheap_key_t transform_key(maxheap_key_t);
 static int heap_read(heap_t *, int, heap_node_t *);
 static int heap_write(heap_t *, int, heap_node_t *);
@@ -135,7 +134,6 @@ static struct bucket_cache *bucket_load(heap_t *, int);
 static int bucket_append(heap_t *, int, struct key_value_pair *);
 static int bucket_split(heap_t *, int);
 
-static void init(void);
 static db_result_t create(index_t *);
 static db_result_t destroy(index_t *);
 static db_result_t load(index_t *);
@@ -153,41 +151,8 @@ index_api_t index_maxheap = {
   release,
   insert,
   delete,
-  get_next,
-  init
+  get_next
 };
-
-/*
- * Reset the module's internal state. This releases any heap objects that
- * were reserved by earlier indexes and invalidates the bucket cache, so that
- * re-initializing the database (db_init) does not leave the single heap slot
- * permanently occupied.
- */
-static void
-init(void)
-{
-  heap_t *heap;
-  int i;
-
-  /*
-   * Close the storage of heaps that are still allocated. If the file system
-   * has been formatted since they were opened, Coffee has already freed
-   * these descriptors and ignores the close.
-   */
-  for(i = 0; i < heaps.num; i++) {
-    if(heaps.used[i]) {
-      heap = &((heap_t *)heaps.mem)[i];
-      storage_close(heap->heap_storage);
-      storage_close(heap->bucket_storage);
-    }
-  }
-
-  memb_init(&heaps);
-
-  for(i = 0; i < DB_HEAP_CACHE_LIMIT; i++) {
-    bucket_cache[i].heap = NULL;
-  }
-}
 
 static struct bucket_cache *
 get_cache(heap_t *heap, int bucket_id)
@@ -224,19 +189,6 @@ invalidate_cache(void)
     if(bucket_cache[i].heap != NULL) {
       bucket_cache[i].heap = NULL;
       break;
-    }
-  }
-}
-
-static void
-invalidate_heap_cache(heap_t *heap)
-{
-  int i;
-
-  /* Drop every cached bucket that belongs to this heap. */
-  for(i = 0; i < DB_HEAP_CACHE_LIMIT; i++) {
-    if(bucket_cache[i].heap == heap) {
-      bucket_cache[i].heap = NULL;
     }
   }
 }
@@ -442,7 +394,6 @@ static int
 bucket_append(heap_t *heap, int bucket_id, struct key_value_pair *pair)
 {
   unsigned long offset;
-  struct bucket_cache *cache;
 
   if(heap->next_free_slot[bucket_id] >= BUCKET_SIZE) {
     PRINTF("DB: Invalid write attempt to the full bucket %d\n", bucket_id);
@@ -454,12 +405,6 @@ bucket_append(heap_t *heap, int bucket_id, struct key_value_pair *pair)
 
   if(DB_ERROR(storage_write(heap->bucket_storage, pair, offset, sizeof(*pair)))) {
     return 0;
-  }
-
-  /* Keep a cached copy of the bucket consistent with the storage. */
-  cache = get_cache(heap, bucket_id);
-  if(cache != NULL) {
-    cache->bucket.pairs[heap->next_free_slot[bucket_id]] = *pair;
   }
 
   heap->next_free_slot[bucket_id]++;
@@ -522,16 +467,6 @@ insert_item(heap_t *heap, maxheap_key_t key, maxheap_value_t value)
   pair.key = key;
   pair.value = value;
 
-  /*
-   * A free slot index of zero has not been determined yet, as is the case
-   * after loading the heap from storage. Loading the bucket determines it,
-   * so that the append below does not overwrite stored pairs.
-   */
-  if(heap->next_free_slot[bucket_id] == 0 &&
-     bucket_load(heap, bucket_id) == NULL) {
-    return 0;
-  }
-
   if(heap->next_free_slot[bucket_id] == BUCKET_SIZE) {
     PRINTF("DB: Bucket %d is full\n", bucket_id);
     if(bucket_split(heap, bucket_id) == 0) {
@@ -558,6 +493,7 @@ insert_item(heap_t *heap, maxheap_key_t key, maxheap_value_t value)
 static db_result_t
 create(index_t *index)
 {
+  char heap_filename[DB_MAX_FILENAME_LENGTH];
   char bucket_filename[DB_MAX_FILENAME_LENGTH];
   char *filename;
   db_result_t result;
@@ -637,7 +573,7 @@ create(index_t *index)
       memb_free(&heaps, heap);
     }
     if(index->descriptor_file[0] != '\0') {
-      cfs_remove(index->descriptor_file);
+      cfs_remove(heap_filename);
       index->descriptor_file[0] = '\0';
     }
     if(bucket_filename[0] != '\0') {
@@ -650,32 +586,8 @@ create(index_t *index)
 static db_result_t
 destroy(index_t *index)
 {
-  heap_t *heap;
-  char bucket_file[DB_MAX_FILENAME_LENGTH];
-  int have_bucket_file;
-
-  heap = index->opaque_data;
-
-  /*
-   * The bucket filename is stored at the start of the heap file. Read it
-   * before the descriptors are closed so that both backing files can be
-   * removed. The in-memory heap itself is freed afterwards by release(),
-   * which index_destroy() invokes right after this function.
-   */
-  have_bucket_file = DB_SUCCESS(storage_read(heap->heap_storage, bucket_file,
-                                             0, sizeof(bucket_file)));
-
-  storage_close(heap->heap_storage);
-  storage_close(heap->bucket_storage);
-  heap->heap_storage = -1;
-  heap->bucket_storage = -1;
-
-  cfs_remove(index->descriptor_file);
-  if(have_bucket_file) {
-    cfs_remove(bucket_file);
-  }
-
-  return DB_OK;
+  release(index);
+  return DB_INDEX_ERROR;
 }
 
 static db_result_t
@@ -693,13 +605,12 @@ load(index_t *index)
 
   fd = storage_open(index->descriptor_file);
   if(fd < 0) {
-    memb_free(&heaps, heap);
     return DB_STORAGE_ERROR;
   }
 
-  if(DB_ERROR(storage_read(fd, bucket_file, 0, sizeof(bucket_file)))) {
+  if(storage_read(fd, bucket_file, 0, sizeof(bucket_file)) !=
+     sizeof(bucket_file)) {
     storage_close(fd);
-    memb_free(&heaps, heap);
     return DB_STORAGE_ERROR;
   }
 
@@ -707,12 +618,6 @@ load(index_t *index)
 
   heap->heap_storage = storage_open(index->descriptor_file);
   heap->bucket_storage = storage_open(bucket_file);
-  if(heap->heap_storage < 0 || heap->bucket_storage < 0) {
-    storage_close(heap->heap_storage);
-    storage_close(heap->bucket_storage);
-    memb_free(&heaps, heap);
-    return DB_STORAGE_ERROR;
-  }
 
   memset(&heap->next_free_slot, 0, sizeof(heap->next_free_slot));
 
@@ -729,11 +634,10 @@ release(index_t *index)
 
   heap = index->opaque_data;
 
-  invalidate_heap_cache(heap);
   storage_close(heap->bucket_storage);
   storage_close(heap->heap_storage);
   memb_free(&heaps, index->opaque_data);
-  return DB_OK;
+  return DB_INDEX_ERROR;
 }
 
 static db_result_t

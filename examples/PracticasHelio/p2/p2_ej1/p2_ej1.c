@@ -32,7 +32,7 @@ PROCESS_THREAD(parpadeo_2_process, ev, data)
   PROCESS_BEGIN();
   PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_POLL);
   while(1) {
-    leds_toggle(LEDS_RED);  %Encendemos el led rojo pq el amarillo no existe
+    leds_toggle (LEDS_YELLOW);  
     etimer_set(&timer, CLOCK_SECOND * 4);
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
   }

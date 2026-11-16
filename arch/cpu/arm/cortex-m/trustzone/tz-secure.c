@@ -36,7 +36,6 @@
  */
 
 #include "contiki.h"
-#include "dev/uarte-arch.h"
 #include "region_defs.h"
 #include "spu.h"
 #include "tz-api.h"
@@ -60,48 +59,38 @@ setup(void)
 {
   LOG_INFO("Initializing TrustZone\n");
 
-  LOG_INFO("Enabling fault handlers\n");
-  enable_fault_handlers();
+  /* SPM example */
+  LOG_INFO("Enabling fault handlers: ");
+  if(enable_fault_handlers() == TFM_PLAT_ERR_SUCCESS) {
+    LOG_INFO_("success\n");
+  } else {
+    LOG_INFO_("failure\n");
+    return NULL;
+  }
 
   /*
    * Set flash and RAM secure.
    * Set non-secure partition non-secure for both flash and RAM.
    * Set all peripherals non-secure.
    */
-#ifndef SECURE_UART0
-  /*
-   * If UART will be handed to the normal world, uninitialize the
-   * secure UART driver before changing the SPU security attributes.
-   * This stops any pending DMA, disables the peripheral, and
-   * prevents the secure world from accidentally accessing UART
-   * after it becomes non-secure (which would cause a BusFault).
-   */
-  uarte_uninit();
-#endif
-
   sau_and_idau_cfg();
   non_secure_configuration();
-
-  /*
-   * After non_secure_configuration(), UART may be non-secure
-   * (unless SECURE_UART0 is defined). The secure world must not
-   * attempt to print via a non-secure UART as it will hang in
-   * the TX-in-progress polling loop.
-   */
 
   /* Verify that the start of the vector table of the non-secure world
      now has non-secure permissions. */
   void *ptr = (void *)NS_CODE_START;
-  if(cmse_check_address_range(ptr, sizeof(ptr), CMSE_NONSECURE) != ptr) {
-#ifdef SECURE_UART0
+  if(cmse_check_address_range(ptr, sizeof(ptr), CMSE_NONSECURE) == ptr) {
+    /* Check succeeded. */
+    LOG_INFO("Non-secure image has correct permissions\n");
+  } else {
     LOG_ERR("Non-secure image has incorrect permissions\n");
-#endif
     return NULL;
   }
 
-  system_reset_cfg();
-  nvic_interrupt_target_state_cfg();
-  nvic_interrupt_enable();
+  enum tfm_plat_err_t tfm_err = nvic_interrupt_target_state_cfg();
+  if(tfm_err != TFM_PLAT_ERR_SUCCESS) {
+    LOG_DBG("Interrupt state: 0x%x\n", tfm_err);
+  }
 
   uintptr_t *vtor_ns = (uintptr_t *)NS_CODE_START;
   LOG_DBG("NS image at %p\n", vtor_ns);
@@ -137,7 +126,6 @@ void
 platform_main_loop(void)
 {
   tz_fault_init();
-  spu_report_violation();
 
   /* Process all events before switching to non-secure */
   process_num_events_t r;
@@ -159,9 +147,7 @@ platform_main_loop(void)
     return;
   }
 
-#ifdef SECURE_UART0
   LOG_INFO("Preparing to jump to the normal world\n");
-#endif
   spu_periph_config_uarte();
 
   __DSB();

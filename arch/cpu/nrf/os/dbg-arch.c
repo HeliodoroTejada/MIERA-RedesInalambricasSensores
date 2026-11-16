@@ -58,35 +58,7 @@
 #define flush()
 #endif /* PLATFORM_DBG_CONF_USB */
 /*---------------------------------------------------------------------------*/
-#if defined(NRF5340_XXAA_NETWORK)
-/*
- * On the nRF5340 network core, redirect all debug output to a shared
- * memory ring buffer. The application core drains it and prints with
- * a [NET] prefix, avoiding UART pin contention between the two cores.
- */
-#include "nrf-ipc.h"
-/*---------------------------------------------------------------------------*/
-int
-dbg_putchar(int c)
-{
-  volatile struct nrf_ipc_shared_mem *shm = NRF_IPC_SHARED_MEM;
-  uint16_t head = shm->log.head;
-  uint16_t next = (head + 1) % NRF_IPC_LOG_BUF_SIZE;
-
-  /* Drop the character if the buffer is full. */
-  if(next == shm->log.tail) {
-    shm->log.overflow++;
-    return c;
-  }
-
-  shm->log.data[head] = (char)c;
-  __DMB();
-  shm->log.head = next;
-
-  return c;
-}
-/*---------------------------------------------------------------------------*/
-#elif NRF_TRUSTZONE_NONSECURE
+#if TRUSTZONE_NONSECURE
 #include "trustzone/tz-api.h"
 
 #define DBG_BUF_SIZE 256
@@ -96,16 +68,13 @@ static uint16_t dbg_pos;
 int
 dbg_putchar(int c)
 {
-  if(dbg_pos < DBG_BUF_SIZE - 1) {
+  if(dbg_pos < DBG_BUF_SIZE) {
     dbg_buf[dbg_pos++] = c;
   }
 
   if(c == '\n' || dbg_pos >= DBG_BUF_SIZE - 1) {
-    /* Strip the trailing newline; tz_api_println adds one. */
-    uint16_t len = (dbg_pos > 0 && dbg_buf[dbg_pos - 1] == '\n')
-                   ? dbg_pos - 1 : dbg_pos;
-    dbg_buf[len] = '\0';
-    tz_api_println(dbg_buf, len);
+    dbg_buf[MIN(dbg_pos - 1, DBG_BUF_SIZE - 1)] = '\0';
+    tz_api_println(dbg_buf);
     dbg_pos = 0;
   }
 
@@ -123,19 +92,19 @@ dbg_putchar(int c)
 
   return c;
 }
-#endif /* NRF_TRUSTZONE_NONSECURE */
+#endif /* TRUSTZONE_NONSECURE */
 /*---------------------------------------------------------------------------*/
 unsigned int
 dbg_send_bytes(const unsigned char *s, unsigned int len)
 {
-  unsigned int i;
+  unsigned int i = 0;
 
-  if(s == NULL) {
-    return 0;
-  }
-
-  for(i = 0; i < len; i++) {
-    dbg_putchar(s[i]);
+  while(s && *s != 0) {
+    if(i >= len) {
+      break;
+    }
+    dbg_putchar(*s++);
+    i++;
   }
 
   flush();

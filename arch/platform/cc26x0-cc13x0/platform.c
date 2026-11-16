@@ -64,6 +64,7 @@
 #include "sys/rtimer.h"
 #include "sys/node-id.h"
 #include "sys/platform.h"
+#include "lib/random.h"
 #include "lib/sensors.h"
 #include "button-sensor.h"
 #include "dev/serial-line.h"
@@ -171,6 +172,8 @@ platform_init_stage_one()
 void
 platform_init_stage_two()
 {
+  random_init(0x1234);
+
   /* Character I/O Initialisation */
 #if TI_UART_CONF_ENABLE
   cc26xx_uart_init();

@@ -44,6 +44,7 @@
  */
 
 #include <string.h>
+#include <stdlib.h>
 #include <stddef.h>
 #include "lib/list.h"
 #include "net/link-stats.h"

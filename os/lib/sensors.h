@@ -34,7 +34,6 @@
 #define SENSORS_H_
 
 #include "contiki.h"
-#include "sys/cc.h"
 
 /* some constants for the configure API */
 #define SENSORS_HW_INIT 128 /* internal - used only for initialization */
@@ -47,7 +46,7 @@
 #define SENSORS_SENSOR(name, type, value, configure, status)        \
 const struct sensors_sensor name = { type, value, configure, status }
 
-#define SENSORS_NUM CC_ARRAY_LENGTH(sensors)
+#define SENSORS_NUM (sizeof(sensors) / sizeof(struct sensors_sensor *))
 
 #define SENSORS(...) \
 const struct sensors_sensor *sensors[] = {__VA_ARGS__, NULL};       \

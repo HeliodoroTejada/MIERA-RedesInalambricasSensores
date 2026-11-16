@@ -35,11 +35,7 @@
 /* Save some RAM and ROM */
 #define QUEUEBUF_CONF_NUM              4
 #define UIP_CONF_BUFFER_SIZE         140
-#define BORDER_ROUTER_CONF_WEBSERVER   1
-#define NBR_TABLE_CONF_MAX_NEIGHBORS 4
-#define NETSTACK_MAX_ROUTE_ENTRIES 4
-#define SICSLOWPAN_CONF_FRAG 0
-#define LOG_CONF_LEVEL_MAIN 2
+#define BORDER_ROUTER_CONF_WEBSERVER   0
 #endif
 
 #ifndef WEBSERVER_CONF_CFS_CONNS
@@ -52,14 +48,6 @@
 
 #if BORDER_ROUTER_CONF_WEBSERVER
 #define UIP_CONF_TCP 1
-#endif
-
-/* When the native BR build includes the NAT64 module, register the
- * NAT64 prefix as a 6LoWPAN compression context so its IPHC encoder
- * matches IoT nodes that include the same header in their own
- * project-conf.h. */
-#ifdef BUILD_WITH_NAT64
-#include "services/nat64/nat64-6lowpan.h"
 #endif
 
 #endif /* PROJECT_CONF_H_ */

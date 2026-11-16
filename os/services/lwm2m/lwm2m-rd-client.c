@@ -894,15 +894,10 @@ lwm2m_rd_client_fsm_execute_queue_mode_awake(lwm2m_session_info_t *session_info)
 }
 /*---------------------------------------------------------------------------*/
 void
-lwm2m_rd_client_fsm_execute_queue_mode_update(void)
+lwm2m_rd_client_fsm_execute_queue_mode_update(lwm2m_session_info_t *session_info)
 {
-  lwm2m_session_info_t *session_info = (lwm2m_session_info_t *)list_head(session_info_list);
-
   coap_timer_stop(&rd_timer);
-  while(session_info != NULL) {
-    session_info->rd_state = QUEUE_MODE_SEND_UPDATE;
-    session_info = session_info->next;
-  }
+  session_info->rd_state = QUEUE_MODE_SEND_UPDATE;
   periodic_process(&rd_timer);
 }
 /*---------------------------------------------------------------------------*/

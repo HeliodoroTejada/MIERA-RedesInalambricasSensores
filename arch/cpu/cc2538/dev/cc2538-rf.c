@@ -49,9 +49,8 @@
 #include "dev/sys-ctrl.h"
 #include "dev/udma.h"
 #include "reg.h"
-#include "lib/assert.h"
 #include "lib/iq-seeder.h"
-#include <stdbool.h>
+
 #include <string.h>
 /*---------------------------------------------------------------------------*/
 #define CHECKSUM_LEN 2
@@ -159,12 +158,6 @@ static radio_result_t get_value(radio_param_t param, radio_value_t *value);
 /*---------------------------------------------------------------------------*/
 PROCESS(cc2538_rf_process, "cc2538 RF driver");
 /*---------------------------------------------------------------------------*/
-static bool
-is_transmitting(void)
-{
-  return REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE;
-}
-/*---------------------------------------------------------------------------*/
 /**
  * \brief Get the current operating channel
  * \return Returns a value in [11,26] representing the current channel
@@ -189,7 +182,7 @@ set_channel(uint8_t channel)
   /* Changes to FREQCTRL take effect after the next recalibration */
 
   /* If we are off, save state, otherwise switch off and save state */
-  if(rf_flags & RX_ACTIVE) {
+  if((REG(RFCORE_XREG_FSMSTAT0) & RFCORE_XREG_FSMSTAT0_FSM_FFCTRL_STATE) != 0) {
     was_on = 1;
     off();
   }
@@ -244,7 +237,7 @@ get_rssi(void)
   uint8_t was_off = 0;
 
   /* If we are off, turn on first */
-  if(!(rf_flags & RX_ACTIVE)) {
+  if((REG(RFCORE_XREG_FSMSTAT0) & RFCORE_XREG_FSMSTAT0_FSM_FFCTRL_STATE) == 0) {
     was_off = 1;
     on();
   }
@@ -278,7 +271,7 @@ get_iq_lsbs(radio_value_t *value)
   uint8_t was_off = 0;
 
   /* If we are off, turn on first */
-  if(!(rf_flags & RX_ACTIVE)) {
+  if((REG(RFCORE_XREG_FSMSTAT0) & RFCORE_XREG_FSMSTAT0_FSM_FFCTRL_STATE) == 0) {
     was_off = 1;
     on();
   }
@@ -497,7 +490,7 @@ channel_clear(void)
   LOG_INFO("CCA\n");
 
   /* If we are off, turn on first */
-  if(!(rf_flags & RX_ACTIVE)) {
+  if((REG(RFCORE_XREG_FSMSTAT0) & RFCORE_XREG_FSMSTAT0_FSM_FFCTRL_STATE) == 0) {
     was_off = 1;
     on();
   }
@@ -541,7 +534,7 @@ off(void)
   LOG_INFO("Off\n");
 
   /* Wait for ongoing TX to complete (e.g. this could be an outgoing ACK) */
-  while(is_transmitting());
+  while(REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE);
 
   if(!(REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_FIFOP)) {
     CC2538_RF_CSP_ISFLUSHRX();
@@ -637,10 +630,7 @@ init(void)
   set_poll_mode(poll_mode);
 
 #if CSPRNG_ENABLED
-  if(!iq_seeder_seed()) {
-    LOG_ERR("iq_seeder_seed failed\n");
-    assert(0);
-  }
+  iq_seeder_seed();
 #endif /* CSPRNG_ENABLED */
 
   process_start(&cc2538_rf_process, NULL);
@@ -665,7 +655,7 @@ prepare(const void *payload, unsigned short payload_len)
    * When we transmit in very quick bursts, make sure previous transmission
    * is not still in progress before re-writing to the TX FIFO
    */
-  while(is_transmitting());
+  while(REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE);
 
   if((rf_flags & RX_ACTIVE) == 0) {
     on();
@@ -751,17 +741,18 @@ transmit(unsigned short transmit_len)
   CC2538_RF_CSP_ISTXON();
 
   counter = 0;
-  while(!is_transmitting() && (counter++ < 3)) {
+  while(!((REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE))
+        && (counter++ < 3)) {
     clock_delay_usec(6);
   }
 
-  if(!is_transmitting()) {
+  if(!(REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE)) {
     LOG_ERR("TX never active.\n");
     CC2538_RF_CSP_ISFLUSHTX();
     ret = RADIO_TX_ERR;
   } else {
     /* Wait for the transmission to finish */
-    while(is_transmitting());
+    while(REG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE);
     ret = RADIO_TX_OK;
   }
   ENERGEST_SWITCH(ENERGEST_TYPE_TRANSMIT, ENERGEST_TYPE_LISTEN);
@@ -1178,9 +1169,15 @@ PROCESS_THREAD(cc2538_rf_process, ev, data)
 
     /* If we were polled due to an RF error, reset the transceiver */
     if(rf_flags & RF_MUST_RESET) {
-      /* save state so we know if to switch on again after re-init */
-      bool was_on = rf_flags & RX_ACTIVE;
+      uint8_t was_on;
       rf_flags = 0;
+
+      /* save state so we know if to switch on again after re-init */
+      if((REG(RFCORE_XREG_FSMSTAT0) & RFCORE_XREG_FSMSTAT0_FSM_FFCTRL_STATE) == 0) {
+        was_on = 0;
+      } else {
+        was_on = 1;
+      }
       off();
       init();
       if(was_on) {

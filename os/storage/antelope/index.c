@@ -47,7 +47,6 @@
 #include "db-options.h"
 #include "index.h"
 #include "storage.h"
-#include "sys/cc.h"
 
 static index_api_t *index_components[] = {&index_inline,
 	&index_maxheap};
@@ -63,7 +62,7 @@ find_index_api(index_type_t index_type)
 {
   int i;
 
-  for(i = 0; i < CC_ARRAY_LENGTH(index_components); i++) {
+  for(i = 0; i < sizeof(index_components) / sizeof(index_components[0]); i++) {
       if(index_components[i]->type == index_type) {
 	return index_components[i];
       }
@@ -75,19 +74,8 @@ find_index_api(index_type_t index_type)
 void
 index_init(void)
 {
-  int i;
-
   list_init(indices);
   memb_init(&index_memb);
-
-  /* Reset the internal state of each index component, so that indexes
-     allocated before a re-initialization do not remain reserved. */
-  for(i = 0; i < CC_ARRAY_LENGTH(index_components); i++) {
-    if(index_components[i]->init != NULL) {
-      index_components[i]->init();
-    }
-  }
-
   process_start(&db_indexer, NULL);
 }
 
@@ -145,9 +133,10 @@ index_create(index_type_t index_type, relation_t *rel, attribute_t *attr)
 
   if(index->descriptor_file[0] != '\0' &&
      DB_ERROR(storage_put_index(index))) {
+    api->destroy(index);
+    memb_free(&index_memb, index);
     PRINTF("DB: Failed to store index data in file \"%s\"\n",
            index->descriptor_file);
-    index_destroy(index);
     return DB_INDEX_ERROR;
   }
 
@@ -168,25 +157,8 @@ index_create(index_type_t index_type, relation_t *rel, attribute_t *attr)
 db_result_t
 index_destroy(index_t *index)
 {
-  db_result_t result;
-
-  /*
-   * Remove the index record from the relation's catalog first, so that a
-   * failure further on cannot leave a record that refers to removed files.
-   * Then remove the backend's on-disk state while the in-memory
-   * representation is still valid. The in-memory representation and its
-   * pool slots are released in every case, so that a failed removal does
-   * not leak them.
-   */
-  result = DB_OK;
-  if(index->descriptor_file[0] != '\0') {
-    result = storage_remove_index(index);
-  }
-  if(DB_SUCCESS(result)) {
-    result = index->api->destroy(index);
-  }
-
-  if(DB_ERROR(index_release(index)) || DB_ERROR(result)) {
+  if(DB_ERROR(index_release(index)) ||
+     DB_ERROR(index->api->destroy(index))) {
     return DB_INDEX_ERROR;
   }
 
@@ -220,7 +192,6 @@ index_load(relation_t *rel, attribute_t *attr)
   api = find_index_api(index->type);
   if(api == NULL) {
     PRINTF("DB: No API for index type %d\n", index->type);
-    memb_free(&index_memb, index);
     return DB_INDEX_ERROR;
   }
 
@@ -228,7 +199,6 @@ index_load(relation_t *rel, attribute_t *attr)
 
   if(DB_ERROR(api->load(index))) {
     PRINTF("DB: Index-specific load failed\n");
-    memb_free(&index_memb, index);
     return DB_INDEX_ERROR;
   }
 

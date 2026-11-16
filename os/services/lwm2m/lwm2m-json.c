@@ -73,15 +73,11 @@ lwm2m_json_next_token(lwm2m_context_t *ctx, struct json_data *json)
 {
   int pos = ctx->inbuf->pos;
   uint8_t type = T_NONE;
-  /* Positions index into the input buffer, which can be larger than 255
-     bytes, so these must be as wide as pos rather than uint8_t. */
-  unsigned int vpos_start = 0;
-  unsigned int vpos_end = 0;
+  uint8_t vpos_start = 0;
+  uint8_t vpos_end = 0;
   uint8_t cont;
-  unsigned int wscount = 0;
+  uint8_t wscount = 0;
 
-  json->name = NULL;
-  json->value = NULL;
   json->name_len = 0;
   json->value_len = 0;
 
@@ -95,10 +91,7 @@ lwm2m_json_next_token(lwm2m_context_t *ctx, struct json_data *json)
     case ',':
       if(type == T_VAL || type == T_STRING) {
         json->value = &ctx->inbuf->buffer[vpos_start];
-        /* Guard against the trailing-whitespace count exceeding the token
-           span, which would otherwise underflow value_len. */
-        json->value_len = (vpos_end > vpos_start + wscount) ?
-          (vpos_end - vpos_start - wscount) : 0;
+        json->value_len = vpos_end - vpos_start - wscount;
         type = T_NONE;
         cont = 0;
       }
@@ -124,7 +117,7 @@ lwm2m_json_next_token(lwm2m_context_t *ctx, struct json_data *json)
     case ':':
       if(type == T_STRING) {
         json->name = &ctx->inbuf->buffer[vpos_start];
-        json->name_len = (vpos_end > vpos_start) ? (vpos_end - vpos_start) : 0;
+        json->name_len = vpos_end - vpos_start;
         vpos_start = vpos_end = pos;
         type = T_VAL;
       } else {
