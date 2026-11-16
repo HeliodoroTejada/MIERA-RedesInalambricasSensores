@@ -18,6 +18,7 @@ PROCESS_THREAD(parpadeo_1_process, ev, data)
   PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_POLL);
   while(1) {
     leds_toggle(LEDS_GREEN);
+    printf("Conmuto LED Verde");
     etimer_set(&timer, CLOCK_SECOND * 2);
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
   }
@@ -33,6 +34,7 @@ PROCESS_THREAD(parpadeo_2_process, ev, data)
   PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_POLL);
   while(1) {
     leds_toggle (LEDS_YELLOW);  
+    printf("Conmuto LED Amarillo");
     etimer_set(&timer, CLOCK_SECOND * 4);
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
   }
