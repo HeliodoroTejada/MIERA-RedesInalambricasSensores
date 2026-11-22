@@ -1,19 +1,15 @@
-
 #include "contiki.h"
 #include "dev/leds.h"
 #include <stdio.h>
 
-/* Declaración de las 3 tareas */
 PROCESS(tarea_1_process, "Tarea 1 - LED Verde");
 PROCESS(tarea_2_process, "Tarea 2 - LED Amarillo");
 PROCESS(tarea_3_process, "Tarea 3 - Temporizador");
 
-/* Arranque automático de los 3 procesos */
 AUTOSTART_PROCESSES(&tarea_1_process, &tarea_2_process, &tarea_3_process);
 
-/* -------------------------------------------------------------------------- */
-/* TAREA 3: Temporizador de 3 segundos que lanza eventos a Tarea 1 y Tarea 2  */
-/* -------------------------------------------------------------------------- */
+/*---------------------------------------------------------------------------*/
+/* Tarea 3: tras 3 segundos lanza el evento de inicio a las tareas 1 y 2 */
 PROCESS_THREAD(tarea_3_process, ev, data)
 {
   static struct etimer timer_inicio;
@@ -31,17 +27,14 @@ PROCESS_THREAD(tarea_3_process, ev, data)
 
   PROCESS_END();
 }
-
-/* -------------------------------------------------------------------------- */
-/* TAREA 1: Parpadeo de LEDS_GREEN cada 2 segundos tras recibir evento        */
-/* -------------------------------------------------------------------------- */
+/*---------------------------------------------------------------------------*/
+/* Tarea 1: parpadeo de LEDS_GREEN cada 2 segundos */
 PROCESS_THREAD(tarea_1_process, ev, data)
 {
   static struct etimer timer_green;
 
   PROCESS_BEGIN();
 
-  /* Esperar evento de la Tarea 3 */
   PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_POLL);
   printf("Tarea 1: Evento recibido. Iniciando parpadeo LEDS_GREEN (2s).\n");
 
@@ -56,17 +49,14 @@ PROCESS_THREAD(tarea_1_process, ev, data)
 
   PROCESS_END();
 }
-
-/* -------------------------------------------------------------------------- */
-/* TAREA 2: Parpadeo de LEDS_YELLOW cada 4 segundos tras recibir evento       */
-/* -------------------------------------------------------------------------- */
+/*---------------------------------------------------------------------------*/
+/* Tarea 2: parpadeo de LEDS_YELLOW cada 4 segundos */
 PROCESS_THREAD(tarea_2_process, ev, data)
 {
   static struct etimer timer_yellow;
 
   PROCESS_BEGIN();
 
-  /* Esperar evento de la Tarea 3 */
   PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_POLL);
   printf("Tarea 2: Evento recibido. Iniciando parpadeo LEDS_YELLOW (4s).\n");
 

@@ -28,16 +28,18 @@ udp_rx_callback(struct simple_udp_connection *c,
          const uint8_t *data,
          uint16_t datalen)
 {
-  char buf_in[16];
-  char buf_out[16];
+  char buf[16];
+  char reply[16];
   int temp_c, temp_f;
-  uint16_t len = datalen < sizeof(buf_in) - 1 ? datalen : sizeof(buf_in) - 1;
 
-  memcpy(buf_in, data, len);
-  buf_in[len] = '\0';
-  temp_c = atoi(buf_in);
+  if(datalen >= sizeof(buf)) {
+    datalen = sizeof(buf) - 1;
+  }
+  memcpy(buf, data, datalen);
+  buf[datalen] = '\0';
+  temp_c = atoi(buf);
 
-  /* Conversión Celsius a Fahrenheit con redondeo al entero más próximo */
+  /* Conversion entera de Celsius a Fahrenheit con redondeo */
   temp_f = (temp_c * 9 + 2) / 5 + 32;
 
   LOG_INFO("Info recibida del nodo: '%d' grados\n", temp_c);
@@ -50,18 +52,16 @@ udp_rx_callback(struct simple_udp_connection *c,
   LOG_INFO_6ADDR(sender_addr);
   LOG_INFO_("\n");
 
-  snprintf(buf_out, sizeof(buf_out), "%d", temp_f);
-  simple_udp_sendto(&udp_conn, buf_out, strlen(buf_out), sender_addr);
+  snprintf(reply, sizeof(reply), "%d", temp_f);
+  simple_udp_sendto(&udp_conn, reply, strlen(reply), sender_addr);
 }
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(udp_server_process, ev, data)
 {
   PROCESS_BEGIN();
 
-  /* Inicializar este nodo como raíz del grafo RPL */
   NETSTACK_ROUTING.root_start();
 
-  /* Inicializar conexión UDP */
   simple_udp_register(&udp_conn, UDP_SERVER_PORT, NULL,
                       UDP_CLIENT_PORT, udp_rx_callback);
 

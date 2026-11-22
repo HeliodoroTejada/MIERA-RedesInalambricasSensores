@@ -29,6 +29,7 @@ static uint32_t rx_count = 0;
 PROCESS(udp_client_process, "UDP client");
 AUTOSTART_PROCESSES(&udp_client_process);
 /*---------------------------------------------------------------------------*/
+/* Recepcion de la temperatura convertida a Fahrenheit desde el servidor */
 static void
 udp_rx_callback(struct simple_udp_connection *c,
          const uip_ipaddr_t *sender_addr,
@@ -63,6 +64,7 @@ PROCESS_THREAD(udp_client_process, ev, data)
     if(NETSTACK_ROUTING.node_is_reachable() &&
         NETSTACK_ROUTING.get_root_ipaddr(&dest_ipaddr)) {
 
+      /* Envio alterno: impar -> temperatura interna, par -> externa */
       if(tx_count % 2 != 0) {
         temp_celsius = TEMP_INTERNA;
         LOG_INFO("Enviando temperatura interna en Celsius = %d\n", temp_celsius);
