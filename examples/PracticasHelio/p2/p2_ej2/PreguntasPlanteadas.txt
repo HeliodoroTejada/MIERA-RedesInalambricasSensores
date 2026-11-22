@@ -1,0 +1,36 @@
+2. Abrir el socket serie y el navegador con la página principal. ¿Qué se muestra
+ahora en la web del nodo fronte
+
+Se ejecuta la simulacion y se lanza el socket serie. Con ello podemos acceder a la pagina web con [fd00::212:7404:4:404]
+En la pagina web podemos ver que el unico vecino directo del router es el nodo 3, como se indica en la práctica
+Justo debaja, se indica los caminos de enrutado para el resto de nodos que no tienen conexion directa con el router
+    * Nodo 3 = fd00::212:7403:3:303 <- El padre es: fd00::212:7404:4:404
+    * Nodo 2 = fd00::212:7402:2:202 <- El padre es: fd00::212:7403:3:303
+    * Nodo 1 = fd00::212:7401:1:101 <- El padre es: fd00::212:7402:2:202
+
+
+
+
+
+
+
+
+3. Interpretar los archivos de los clientes y el servidor
+    * Z1, udp-client.c
+        Se encarga de enviar informacion periodicamente al Border router
+
+    * Border Router, border-router.c
+        Inicia el servidor web cuando se habilita y registra el Border Router
+
+
+
+
+
+4. ¿Qué información envían los nodos terminales hacia el router? Mostrar las
+tramas enviadas por los nodos hacia el router.
+    La informacion que envian los nodos terminales hacia el router son una cadela del tipo hellow 1, hellow 2 ....
+    La comunicacion se implementa con UDP sobre IPv6 
+    El caso por ejemplo de la comunicacion del router con el nodo 1, el nodo 1 se cumunica con el router a traves del nodo 2 y 3, en este orden
+    
+
+    

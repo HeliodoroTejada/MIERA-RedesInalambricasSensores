@@ -1,0 +1,11 @@
+Descripción de la implementación
+
+Se configuran los 3 nodos clientes como Z1 (1, 2, 3) y el nodo servidor como Sky (4)
+  Modificacion del codigo udp-client.c (Z1) => Envio de temperaturas periodicas (27 o 42 grados centigrados segun el contador sea par o impar) 
+  Modificacion del codigo udp-server.c (Sky) => Recibe las temperaturas en celsius y las convierte a grados Fahrenheit utilizando la expresión \(T_F = 1,8 \cdot T_C + 32\). Luego envia esta temperatura al cliente que la ha enviado anteriormente
+
+Interpretación de la simulación
+La simulación permite observar el intercambio bidireccional de mensajes UDP entre los clientes y el servidor.
+Los clientes envían alternativamente temperaturas de 42 °C y 27 °C, mientras que el servidor realiza la conversión y responde con 107,6 °F y 80,6 °F, respectivamente.
+Mediante la ventana Mote output se pueden comprobar los mensajes enviados, los valores recibidos por el servidor y las respuestas generadas.
+

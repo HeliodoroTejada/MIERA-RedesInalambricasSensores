@@ -2,13 +2,13 @@
 <simconf version="2023090101">
   <simulation>
     <title>p2_ej2</title>
-    <speedlimit>20.0</speedlimit>
+    <speedlimit>2.0</speedlimit>
     <randomseed>123456</randomseed>
     <motedelay_us>1000000</motedelay_us>
     <radiomedium>
       org.contikios.cooja.radiomediums.UDGM
-      <transmitting_range>35.0</transmitting_range>
-      <interference_range>45.0</interference_range>
+      <transmitting_range>50.0</transmitting_range>
+      <interference_range>100.0</interference_range>
       <success_ratio_tx>1.0</success_ratio_tx>
       <success_ratio_rx>1.0</success_ratio_rx>
     </radiomedium>
@@ -17,7 +17,7 @@
     </events>
     <motetype>
       org.contikios.cooja.mspmote.SkyMoteType
-      <description>Border Router Sky</description>
+      <description>Sky Mote Type #sky1</description>
       <firmware>[CONFIG_DIR]/../../../rpl-border-router/build/sky/border-router.sky</firmware>
       <moteinterface>org.contikios.cooja.interfaces.Position</moteinterface>
       <moteinterface>org.contikios.cooja.interfaces.IPAddress</moteinterface>
@@ -36,7 +36,7 @@
       <mote>
         <interface_config>
           org.contikios.cooja.interfaces.Position
-          <pos x="92.23339979024178" y="67.78243857464113" />
+          <pos x="67.21493218023241" y="5.335222300959018" />
         </interface_config>
         <interface_config>
           org.contikios.cooja.mspmote.interfaces.MspMoteID
@@ -45,24 +45,29 @@
       </mote>
     </motetype>
     <motetype>
-      org.contikios.cooja.mspmote.Z1MoteType
-      <description>Z1 Mote</description>
-      <firmware>[CONFIG_DIR]/../../../rpl-udp/build/z1/udp-client.z1</firmware>
+      org.contikios.cooja.mspmote.SkyMoteType
+      <description>Sky Mote Type #Z1</description>
+      <source>[CONFIG_DIR]/../../../rpl-udp/udp-client.c</source>
+      <commands>$(MAKE) -j$(CPUS) udp-client.sky TARGET=sky</commands>
+      <firmware>[CONFIG_DIR]/../../../rpl-udp/build/sky/udp-client.sky</firmware>
       <moteinterface>org.contikios.cooja.interfaces.Position</moteinterface>
       <moteinterface>org.contikios.cooja.interfaces.IPAddress</moteinterface>
       <moteinterface>org.contikios.cooja.interfaces.Mote2MoteRelations</moteinterface>
       <moteinterface>org.contikios.cooja.interfaces.MoteAttributes</moteinterface>
       <moteinterface>org.contikios.cooja.mspmote.interfaces.MspClock</moteinterface>
       <moteinterface>org.contikios.cooja.mspmote.interfaces.MspMoteID</moteinterface>
-      <moteinterface>org.contikios.cooja.mspmote.interfaces.MspButton</moteinterface>
+      <moteinterface>org.contikios.cooja.mspmote.interfaces.SkyButton</moteinterface>
+      <moteinterface>org.contikios.cooja.mspmote.interfaces.SkyFlash</moteinterface>
+      <moteinterface>org.contikios.cooja.mspmote.interfaces.SkyCoffeeFilesystem</moteinterface>
       <moteinterface>org.contikios.cooja.mspmote.interfaces.Msp802154Radio</moteinterface>
-      <moteinterface>org.contikios.cooja.mspmote.interfaces.MspDefaultSerial</moteinterface>
+      <moteinterface>org.contikios.cooja.mspmote.interfaces.MspSerial</moteinterface>
       <moteinterface>org.contikios.cooja.mspmote.interfaces.MspLED</moteinterface>
       <moteinterface>org.contikios.cooja.mspmote.interfaces.MspDebugOutput</moteinterface>
+      <moteinterface>org.contikios.cooja.mspmote.interfaces.SkyTemperature</moteinterface>
       <mote>
         <interface_config>
           org.contikios.cooja.interfaces.Position
-          <pos x="7.756851701063649" y="67.54566616199567" />
+          <pos x="-27.207195262348996" y="31.04450935100311" />
         </interface_config>
         <interface_config>
           org.contikios.cooja.mspmote.interfaces.MspMoteID
@@ -72,7 +77,7 @@
       <mote>
         <interface_config>
           org.contikios.cooja.interfaces.Position
-          <pos x="33.72286460632619" y="67.72897139035928" />
+          <pos x="5.378333582956262" y="33.384161036457684" />
         </interface_config>
         <interface_config>
           org.contikios.cooja.mspmote.interfaces.MspMoteID
@@ -82,7 +87,7 @@
       <mote>
         <interface_config>
           org.contikios.cooja.interfaces.Position
-          <pos x="63.2968407786997" y="69.01863504771111" />
+          <pos x="40.81575533175527" y="31.217332899533808" />
         </interface_config>
         <interface_config>
           org.contikios.cooja.mspmote.interfaces.MspMoteID
@@ -99,9 +104,9 @@
       <skin>org.contikios.cooja.plugins.skins.GridVisualizerSkin</skin>
       <skin>org.contikios.cooja.plugins.skins.TrafficVisualizerSkin</skin>
       <skin>org.contikios.cooja.plugins.skins.UDGMVisualizerSkin</skin>
-      <viewport>2.200965187816444 0.0 0.0 2.200965187816444 36.84831485977958 -0.3296077567632407</viewport>
+      <viewport>2.901327288098704 0.0 0.0 2.901327288098704 137.3788972392021 95.03080146778264</viewport>
     </plugin_config>
-    <bounds x="1" y="1" height="400" width="347" z="2" />
+    <bounds x="1" y="1" height="400" width="400" z="2" />
   </plugin>
   <plugin>
     org.contikios.cooja.plugins.LogListener
@@ -110,7 +115,7 @@
       <formatted_time />
       <coloring />
     </plugin_config>
-    <bounds x="1237" y="91" height="966" width="1512" z="3" />
+    <bounds x="400" y="160" height="357" width="1035" />
   </plugin>
   <plugin>
     org.contikios.cooja.plugins.TimeLine
@@ -124,7 +129,7 @@
       <showLEDs />
       <zoomfactor>500.0</zoomfactor>
     </plugin_config>
-    <bounds x="0" y="410" height="505" width="1073" z="6" />
+    <bounds x="33" y="536" height="503" width="1239" z="4" />
   </plugin>
   <plugin>
     org.contikios.cooja.plugins.Notes
@@ -132,33 +137,15 @@
       <notes>Enter notes here</notes>
       <decorations>true</decorations>
     </plugin_config>
-    <bounds x="343" y="0" height="160" width="157" z="5" />
+    <bounds x="400" y="0" height="150" width="431" z="3" />
   </plugin>
   <plugin>
     org.contikios.cooja.serialsocket.SerialSocketServer
-    <mote_arg>3</mote_arg>
-    <plugin_config>
-      <port>60004</port>
-      <bound>true</bound>
-    </plugin_config>
-    <bounds x="0" y="0" height="116" width="362" z="7" />
-  </plugin>
-  <plugin>
-    org.contikios.cooja.serialsocket.SerialSocketServer
-    <mote_arg>3</mote_arg>
+    <mote_arg>0</mote_arg>
     <plugin_config>
       <port>60001</port>
       <bound>true</bound>
     </plugin_config>
-    <bounds x="566" y="8" height="116" width="362" z="4" />
-  </plugin>
-  <plugin>
-    org.contikios.cooja.plugins.RadioLogger
-    <plugin_config>
-      <split>754</split>
-      <formatted_time />
-      <analyzers name="6lowpan" />
-    </plugin_config>
-    <bounds x="57" y="975" height="844" width="1643" z="1" />
+    <bounds x="11" y="409" height="116" width="362" z="1" />
   </plugin>
 </simconf>
