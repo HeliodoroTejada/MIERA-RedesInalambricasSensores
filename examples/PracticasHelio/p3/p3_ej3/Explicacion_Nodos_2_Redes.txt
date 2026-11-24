@@ -1,0 +1,13 @@
+Red1:
+    PANID => 0xA123
+    CHANNEL => 26
+
+    Node 1, 2, 3 => Nodos Z1 en red 1, clientes
+    Node 7 => Nodo SKY en red 1, servidor
+
+Red2:
+    PANID => 0xB123
+    CHANNEL => 20
+
+    Node 4, 5, 6 => Nodos Z1 en red 2, clientes
+    Node 8 => Nodo SKY en red 2, servidor
